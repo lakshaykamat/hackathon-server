@@ -6,10 +6,12 @@ const connectDb = require('./config/db');
 const passport = require('passport');
 // const cookieSession = require('cookie-session');
 const expressSession = require('express-session');
+const { getAvatar } = require('./util/getAvatar.js');
 // const isAuthenticated = require('./middleware/isAuthenticated.js');
 // const errorHandler = require('./middleware/errorHandler.js');
 // const ROUTES = require('./constants/ROUTES.js');
 // const Admin = require('./models/Admin.js');
+const User = require('./models/User.js')
 // const bcrypt = require('bcrypt')
 // // Connecting to Database
  connectDb();
@@ -28,37 +30,51 @@ app.use(expressSession({
 app.use(passport.initialize());
 app.use(passport.session());
 
-app.post('/register', (req, res) => {
-  // Extract the user input from the request
-  const { username, password } = req.body;
-
-  // Check if the username is already taken
-  User.findOne({ username: username }, (err, user) => {
-    if (err) {
-      return res.status(500).json({ message: 'Internal server error' });
-    }
-    if (user) {
+app.post('/register', async (req, res) => {
+  try {
+    const { username, password, email } = req.body;
+    const existingUser = await User.findOne({ email });
+   
+    if (existingUser) {
       return res.status(400).json({ message: 'Username already taken' });
     }
 
-    // Create a new user with the provided username and password
-    const newUser = new User({ username, password });
 
-    // Save the new user to the database
-    newUser.save((err) => {
-      if (err) {
-        return res.status(500).json({ message: 'Internal server error' });
-      }
+    const newUser = await User.create({
+      username,password,email,avatar:getAvatar(email)
+  })
 
-      // Redirect to the login page or any other appropriate page
-      res.redirect('/login');
-    });
-  });
+    res.json({user:newUser})
+    res.redirect('/login');
+  } catch (err) {
+    return res.status(500).json({ message: 'Internal server error' });
+  }
 });
 
 
+app.post('/login', passport.authenticate('local', {
+  successRedirect: '/dashboard',
+  failureRedirect: '/login',
+  failureFlash: true
+}));
 
-// // Set up view engine
+app.get('/login', (req, res) => {
+  // If user is already authenticated, redirect to the dashboard
+  if (req.isAuthenticated()) {
+    res.redirect('/dashboard');
+  } else {
+    res.render('login');
+  }
+});
+
+app.get('/dashboard', (req, res) => {
+  // Ensure the user is authenticated before accessing the dashboard
+  if (req.isAuthenticated()) {
+    res.send('Dashboard Page');
+  } else {
+    res.redirect('/login');
+  }
+});
 
 app.set('view engine', 'ejs');
 
@@ -66,9 +82,12 @@ app.get('/', (req, res) => {
   res.render('index', { title: 'Temp', message: 'Hello, World' });
 });
 
+app.get('/register', (req, res) => {
+  res.render('register');
+});
 
 
- app.use(`/api/v1/hello`,(req,res)=>res.send("Hello World"));
+app.use(`/api/v1/hello`,(req,res)=>res.send("Hello World"));
 
 
 // Global error handler
