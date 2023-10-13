@@ -57,8 +57,9 @@ const registerUser = tryCatch(asyncHandler(async (req, res) => {
 }))
 
 const loginUser = tryCatch(asyncHandler(passport.authenticate('local', {
-    successRedirect: '/dashboard',
+    successRedirect: '/',
     failureRedirect: '/500',
+    failureFlash:true
 })))
 
 
